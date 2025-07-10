@@ -3470,6 +3470,7 @@ dependencies = [
  "bs58 0.5.1",
  "dotenv",
  "futures",
+ "serde",
  "tokio",
  "tonic",
  "yellowstone-grpc-client",
