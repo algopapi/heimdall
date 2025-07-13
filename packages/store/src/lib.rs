@@ -1,8 +1,4 @@
-pub struct Store {
-}
-
-impl Store {
-    pub fn create_user(&self) {
-
-    }
-}
+mod schema;
+mod config;
+mod store;
+mod models;
