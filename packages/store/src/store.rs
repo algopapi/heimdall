@@ -179,4 +179,40 @@ impl Store {
             .values(&new_order)
             .get_result(&mut self.conn)
     }
+
+    pub fn get_users(&mut self) -> Result<Vec<User>, diesel::result::Error> {
+        use crate::schema::users::dsl::*;
+
+        users.load(&mut self.conn)
+    }
+
+    pub fn get_protocols(&mut self) -> Result<Vec<Protocol>, diesel::result::Error> {
+        use crate::schema::protocols::dsl::*;
+
+        protocols.load(&mut self.conn)
+    }
+
+    pub fn get_pools(&mut self) -> Result<Vec<Pool>, diesel::result::Error> {
+        use crate::schema::pools::dsl::*;
+
+        pools.load(&mut self.conn)
+    }
+
+    pub fn get_transactions(&mut self) -> Result<Vec<Transaction>, diesel::result::Error> {
+        use crate::schema::transactions::dsl::*;
+
+        transactions.load(&mut self.conn)
+    }
+
+    pub fn get_user_swaps(&mut self) -> Result<Vec<UserSwap>, diesel::result::Error> {
+        use crate::schema::user_swaps::dsl::*;
+
+        user_swaps.load(&mut self.conn)
+    }
+
+    pub fn get_orders(&mut self) -> Result<Vec<Order>, diesel::result::Error> {
+        use crate::schema::orders::dsl::*;
+
+        orders.load(&mut self.conn)
+    }
 }
