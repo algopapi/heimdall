@@ -1,4 +1,5 @@
 # Heimdall
 
 Defi Analytics Engine
-<img width="907" height="740" alt="Screenshot 2025-07-12 at 4 05 09 PM" src="https://github.com/user-attachments/assets/d3390ce8-c742-4554-8420-f04a223384a7" />
+
+<img width="998" height="671" alt="Screenshot 2025-07-16 at 9 18 38 PM" src="https://github.com/user-attachments/assets/f3c450cd-639c-476b-b59f-d757b5f74fca" />
