@@ -9,5 +9,5 @@ pub enum PluginError {
     #[error("Component not initialized: {0}")]
     NotInitialized(String),
     #[error("Failed to send message to worker channel: {0}")]
-    ChannelSendError(String)
+    ChannelSendError(String),
 }
