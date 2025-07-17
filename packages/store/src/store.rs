@@ -1,14 +1,12 @@
 use crate::models::{
-    orders::{NewOrder, Order},
-    pools::{NewPool, Pool},
-    protocols::{NewProtocol, Protocol},
-    transactions::{NewTransaction, Transaction},
-    user::{NewUser, User},
-    user_swaps::{NewUserSwap, UserSwap},
+    accounts::{Account, NewAccount},
+    slots::{NewSlot, Slot},
+    transactions::{
+        NewSanitizedTransaction, NewTransaction, NewTransactionSignature, NewTransactionStatusMeta,
+        SanitizedTransaction, Transaction, TransactionSignature, TransactionStatusMeta,
+    },
 };
-use chrono::{DateTime, Utc};
 use diesel::{Connection, PgConnection, RunQueryDsl};
-use rust_decimal::Decimal;
 
 use crate::config::Config;
 
@@ -28,174 +26,90 @@ impl Default for Store {
 }
 
 impl Store {
-    pub fn create_user(
+    // Account operations
+    pub fn create_account(
         &mut self,
-        pubkey: String,
-        signature: Option<String>,
-    ) -> Result<User, diesel::result::Error> {
-        use crate::schema::users;
+        slot: i64,
+        pubkey: Vec<u8>,
+        lamports: i64,
+        owner: Vec<u8>,
+        executable: bool,
+        rent_epoch: i64,
+        data: Option<Vec<u8>>,
+        write_version: i64,
+        txn_signature: Option<Vec<u8>>,
+    ) -> Result<Account, diesel::result::Error> {
+        use crate::schema::accounts;
 
-        let new_user = NewUser { pubkey, signature };
-
-        diesel::insert_into(users::table)
-            .values(&new_user)
-            .get_result(&mut self.conn)
-    }
-
-    pub fn create_protocol(
-        &mut self,
-        name: String,
-        program_id: String,
-        description: Option<String>,
-        is_active: bool,
-    ) -> Result<Protocol, diesel::result::Error> {
-        use crate::schema::protocols;
-
-        let new_protocol = NewProtocol {
-            name,
-            program_id,
-            description,
-            is_active,
+        let new_account = NewAccount {
+            slot,
+            pubkey,
+            lamports,
+            owner,
+            executable,
+            rent_epoch,
+            data,
+            write_version,
+            txn_signature,
         };
 
-        diesel::insert_into(protocols::table)
-            .values(&new_protocol)
+        diesel::insert_into(accounts::table)
+            .values(&new_account)
             .get_result(&mut self.conn)
     }
 
-    pub fn create_pool(
-        &mut self,
-        protocol_id: i32,
-        pool_pubkey: String,
-        base_mint: String,
-        quote_mint: String,
-        base_decimals: i16,
-        quote_decimals: i16,
-        fee_numerator: i64,
-        fee_denominator: i64,
-        is_active: bool,
-    ) -> Result<Pool, diesel::result::Error> {
-        use crate::schema::pools;
+    pub fn get_accounts(&mut self) -> Result<Vec<Account>, diesel::result::Error> {
+        use crate::schema::accounts::dsl::*;
 
-        let new_pool = NewPool {
-            protocol_id,
-            pool_pubkey,
-            base_mint,
-            quote_mint,
-            base_decimals,
-            quote_decimals,
-            fee_numerator,
-            fee_denominator,
-            is_active,
+        accounts.load(&mut self.conn)
+    }
+
+    // Slot operations
+    pub fn create_slot(
+        &mut self,
+        slot: i64,
+        parent: Option<i64>,
+        status: i32,
+    ) -> Result<Slot, diesel::result::Error> {
+        use crate::schema::slots;
+
+        let new_slot = NewSlot {
+            slot,
+            parent,
+            status,
         };
 
-        diesel::insert_into(pools::table)
-            .values(&new_pool)
+        diesel::insert_into(slots::table)
+            .values(&new_slot)
             .get_result(&mut self.conn)
     }
 
+    pub fn get_slots(&mut self) -> Result<Vec<Slot>, diesel::result::Error> {
+        use crate::schema::slots::dsl::*;
+
+        slots.load(&mut self.conn)
+    }
+
+    // Transaction operations
     pub fn create_transaction(
         &mut self,
-        pool_id: i32,
-        protocol_id: i32,
-        user_id: Option<i32>,
-        tx_signature: String,
-        tx_type: String,
-        amount_in: Decimal,
-        amount_out: Decimal,
-        token_in: String,
-        token_out: String,
-        price: Option<Decimal>,
-        fee: Decimal,
+        signature: Vec<u8>,
+        is_vote: bool,
         slot: i64,
-        block_time: DateTime<Utc>,
+        idx: i64,
     ) -> Result<Transaction, diesel::result::Error> {
         use crate::schema::transactions;
 
         let new_transaction = NewTransaction {
-            pool_id,
-            protocol_id,
-            user_id,
-            tx_signature,
-            tx_type,
-            amount_in,
-            amount_out,
-            token_in,
-            token_out,
-            price,
-            fee,
+            signature,
+            is_vote,
             slot,
-            block_time,
+            idx,
         };
 
         diesel::insert_into(transactions::table)
             .values(&new_transaction)
             .get_result(&mut self.conn)
-    }
-
-    pub fn create_user_swap(
-        &mut self,
-        user_id: i32,
-        tx_id: i64,
-    ) -> Result<UserSwap, diesel::result::Error> {
-        use crate::schema::user_swaps;
-
-        let new_user_swap = NewUserSwap { user_id, tx_id };
-
-        diesel::insert_into(user_swaps::table)
-            .values(&new_user_swap)
-            .get_result(&mut self.conn)
-    }
-
-    pub fn create_order(
-        &mut self,
-        user_id: i32,
-        pool_id: i32,
-        protocol_id: i32,
-        order_type: String,
-        side: String,
-        price: Option<Decimal>,
-        amount: Decimal,
-        filled_amount: Decimal,
-        status: String,
-        expires_at: Option<DateTime<Utc>>,
-    ) -> Result<Order, diesel::result::Error> {
-        use crate::schema::orders;
-
-        let new_order = NewOrder {
-            user_id,
-            pool_id,
-            protocol_id,
-            order_type,
-            side,
-            price,
-            amount,
-            filled_amount,
-            status,
-            expires_at,
-        };
-
-        diesel::insert_into(orders::table)
-            .values(&new_order)
-            .get_result(&mut self.conn)
-    }
-
-    pub fn get_users(&mut self) -> Result<Vec<User>, diesel::result::Error> {
-        use crate::schema::users::dsl::*;
-
-        users.load(&mut self.conn)
-    }
-
-    pub fn get_protocols(&mut self) -> Result<Vec<Protocol>, diesel::result::Error> {
-        use crate::schema::protocols::dsl::*;
-
-        protocols.load(&mut self.conn)
-    }
-
-    pub fn get_pools(&mut self) -> Result<Vec<Pool>, diesel::result::Error> {
-        use crate::schema::pools::dsl::*;
-
-        pools.load(&mut self.conn)
     }
 
     pub fn get_transactions(&mut self) -> Result<Vec<Transaction>, diesel::result::Error> {
@@ -204,15 +118,87 @@ impl Store {
         transactions.load(&mut self.conn)
     }
 
-    pub fn get_user_swaps(&mut self) -> Result<Vec<UserSwap>, diesel::result::Error> {
-        use crate::schema::user_swaps::dsl::*;
+    // Sanitized transaction operations
+    pub fn create_sanitized_transaction(
+        &mut self,
+        transaction_id: Option<i32>,
+        message_hash: Vec<u8>,
+        is_simple_vote_transaction: bool,
+    ) -> Result<SanitizedTransaction, diesel::result::Error> {
+        use crate::schema::sanitized_transactions;
 
-        user_swaps.load(&mut self.conn)
+        let new_sanitized_transaction = NewSanitizedTransaction {
+            transaction_id,
+            message_hash,
+            is_simple_vote_transaction,
+        };
+
+        diesel::insert_into(sanitized_transactions::table)
+            .values(&new_sanitized_transaction)
+            .get_result(&mut self.conn)
     }
 
-    pub fn get_orders(&mut self) -> Result<Vec<Order>, diesel::result::Error> {
-        use crate::schema::orders::dsl::*;
+    pub fn get_sanitized_transactions(
+        &mut self,
+    ) -> Result<Vec<SanitizedTransaction>, diesel::result::Error> {
+        use crate::schema::sanitized_transactions::dsl::*;
 
-        orders.load(&mut self.conn)
+        sanitized_transactions.load(&mut self.conn)
+    }
+
+    // Transaction signature operations
+    pub fn create_transaction_signature(
+        &mut self,
+        sanitized_transaction_id: Option<i32>,
+        signature: Vec<u8>,
+    ) -> Result<TransactionSignature, diesel::result::Error> {
+        use crate::schema::transaction_signatures;
+
+        let new_transaction_signature = NewTransactionSignature {
+            sanitized_transaction_id,
+            signature,
+        };
+
+        diesel::insert_into(transaction_signatures::table)
+            .values(&new_transaction_signature)
+            .get_result(&mut self.conn)
+    }
+
+    pub fn get_transaction_signatures(
+        &mut self,
+    ) -> Result<Vec<TransactionSignature>, diesel::result::Error> {
+        use crate::schema::transaction_signatures::dsl::*;
+
+        transaction_signatures.load(&mut self.conn)
+    }
+
+    // Transaction status meta operations
+    pub fn create_transaction_status_meta(
+        &mut self,
+        transaction_id: Option<i32>,
+        is_status_err: bool,
+        error_info: Option<String>,
+        fee: i64,
+    ) -> Result<TransactionStatusMeta, diesel::result::Error> {
+        use crate::schema::transaction_status_meta;
+
+        let new_transaction_status_meta = NewTransactionStatusMeta {
+            transaction_id,
+            is_status_err,
+            error_info,
+            fee,
+        };
+
+        diesel::insert_into(transaction_status_meta::table)
+            .values(&new_transaction_status_meta)
+            .get_result(&mut self.conn)
+    }
+
+    pub fn get_transaction_status_meta(
+        &mut self,
+    ) -> Result<Vec<TransactionStatusMeta>, diesel::result::Error> {
+        use crate::schema::transaction_status_meta::dsl::*;
+
+        transaction_status_meta.load(&mut self.conn)
     }
 }

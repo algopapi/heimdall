@@ -1,119 +1,173 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
-    orders (id) {
-        id -> Int8,
-        user_id -> Int4,
-        pool_id -> Int4,
-        protocol_id -> Int4,
-        #[max_length = 20]
-        order_type -> Varchar,
-        #[max_length = 4]
-        side -> Varchar,
-        price -> Nullable<Numeric>,
-        amount -> Numeric,
-        filled_amount -> Numeric,
-        #[max_length = 20]
-        status -> Varchar,
-        expires_at -> Nullable<Timestamptz>,
-        created_at -> Timestamptz,
-        updated_at -> Timestamptz,
+    accounts (id) {
+        id -> Int4,
+        slot -> Int8,
+        pubkey -> Bytea,
+        lamports -> Int8,
+        owner -> Bytea,
+        executable -> Bool,
+        rent_epoch -> Int8,
+        data -> Nullable<Bytea>,
+        write_version -> Int8,
+        txn_signature -> Nullable<Bytea>,
     }
 }
 
 diesel::table! {
-    pools (id) {
+    sanitized_transactions (id) {
         id -> Int4,
-        protocol_id -> Int4,
-        #[max_length = 44]
-        pool_pubkey -> Varchar,
-        #[max_length = 44]
-        base_mint -> Varchar,
-        #[max_length = 44]
-        quote_mint -> Varchar,
-        base_decimals -> Int2,
-        quote_decimals -> Int2,
-        fee_numerator -> Int8,
-        fee_denominator -> Int8,
-        is_active -> Bool,
-        created_at -> Timestamptz,
-        updated_at -> Timestamptz,
+        transaction_id -> Nullable<Int4>,
+        message_hash -> Bytea,
+        is_simple_vote_transaction -> Bool,
     }
 }
 
 diesel::table! {
-    protocols (id) {
+    slots (id) {
         id -> Int4,
-        #[max_length = 100]
-        name -> Varchar,
-        #[max_length = 44]
-        program_id -> Varchar,
-        description -> Nullable<Text>,
-        is_active -> Bool,
-        created_at -> Timestamptz,
-        updated_at -> Timestamptz,
+        slot -> Int8,
+        parent -> Nullable<Int8>,
+        status -> Int4,
+    }
+}
+
+diesel::table! {
+    transaction_inner_instruction (id) {
+        id -> Int4,
+        inner_instructions_id -> Nullable<Int4>,
+        stack_height -> Nullable<Int4>,
+        program_id_index -> Int4,
+        data -> Bytea,
+    }
+}
+
+diesel::table! {
+    transaction_inner_instructions (id) {
+        id -> Int4,
+        status_meta_id -> Nullable<Int4>,
+        idx -> Int4,
+    }
+}
+
+diesel::table! {
+    transaction_log_messages (id) {
+        id -> Int4,
+        status_meta_id -> Nullable<Int4>,
+        log_message -> Text,
+    }
+}
+
+diesel::table! {
+    transaction_post_balances (id) {
+        id -> Int4,
+        status_meta_id -> Nullable<Int4>,
+        balance -> Int8,
+    }
+}
+
+diesel::table! {
+    transaction_post_token_balances (id) {
+        id -> Int4,
+        status_meta_id -> Nullable<Int4>,
+        account_index -> Int4,
+        mint -> Text,
+        owner -> Nullable<Text>,
+        ui_amount -> Nullable<Float8>,
+        decimals -> Nullable<Int4>,
+        amount -> Nullable<Text>,
+        ui_amount_string -> Nullable<Text>,
+    }
+}
+
+diesel::table! {
+    transaction_pre_balances (id) {
+        id -> Int4,
+        status_meta_id -> Nullable<Int4>,
+        balance -> Int8,
+    }
+}
+
+diesel::table! {
+    transaction_pre_token_balances (id) {
+        id -> Int4,
+        status_meta_id -> Nullable<Int4>,
+        account_index -> Int4,
+        mint -> Text,
+        owner -> Nullable<Text>,
+        ui_amount -> Nullable<Float8>,
+        decimals -> Nullable<Int4>,
+        amount -> Nullable<Text>,
+        ui_amount_string -> Nullable<Text>,
+    }
+}
+
+diesel::table! {
+    transaction_rewards (id) {
+        id -> Int4,
+        status_meta_id -> Nullable<Int4>,
+        pubkey -> Text,
+        lamports -> Int8,
+        post_balance -> Int8,
+        reward_type -> Int4,
+        commission -> Nullable<Int4>,
+    }
+}
+
+diesel::table! {
+    transaction_signatures (id) {
+        id -> Int4,
+        sanitized_transaction_id -> Nullable<Int4>,
+        signature -> Bytea,
+    }
+}
+
+diesel::table! {
+    transaction_status_meta (id) {
+        id -> Int4,
+        transaction_id -> Nullable<Int4>,
+        is_status_err -> Bool,
+        error_info -> Nullable<Text>,
+        fee -> Int8,
     }
 }
 
 diesel::table! {
     transactions (id) {
-        id -> Int8,
-        pool_id -> Int4,
-        protocol_id -> Int4,
-        user_id -> Nullable<Int4>,
-        #[max_length = 88]
-        tx_signature -> Varchar,
-        #[max_length = 20]
-        tx_type -> Varchar,
-        amount_in -> Numeric,
-        amount_out -> Numeric,
-        #[max_length = 44]
-        token_in -> Varchar,
-        #[max_length = 44]
-        token_out -> Varchar,
-        price -> Nullable<Numeric>,
-        fee -> Numeric,
-        slot -> Int8,
-        block_time -> Timestamptz,
-        created_at -> Timestamptz,
-    }
-}
-
-diesel::table! {
-    user_swaps (id) {
-        id -> Int8,
-        user_id -> Int4,
-        tx_id -> Int8,
-        created_at -> Timestamptz,
-    }
-}
-
-diesel::table! {
-    users (id) {
         id -> Int4,
-        #[max_length = 44]
-        pubkey -> Varchar,
-        signature -> Nullable<Text>,
-        created_at -> Timestamptz,
-        updated_at -> Timestamptz,
+        signature -> Bytea,
+        is_vote -> Bool,
+        slot -> Int8,
+        idx -> Int8,
     }
 }
 
-diesel::joinable!(orders -> pools (pool_id));
-diesel::joinable!(orders -> protocols (protocol_id));
-diesel::joinable!(orders -> users (user_id));
-diesel::joinable!(pools -> protocols (protocol_id));
-diesel::joinable!(transactions -> pools (pool_id));
-diesel::joinable!(transactions -> protocols (protocol_id));
-diesel::joinable!(transactions -> users (user_id));
-diesel::joinable!(user_swaps -> transactions (tx_id));
-diesel::joinable!(user_swaps -> users (user_id));
+diesel::joinable!(sanitized_transactions -> transactions (transaction_id));
+diesel::joinable!(transaction_inner_instruction -> transaction_inner_instructions (inner_instructions_id));
+diesel::joinable!(transaction_inner_instructions -> transaction_status_meta (status_meta_id));
+diesel::joinable!(transaction_log_messages -> transaction_status_meta (status_meta_id));
+diesel::joinable!(transaction_post_balances -> transaction_status_meta (status_meta_id));
+diesel::joinable!(transaction_post_token_balances -> transaction_status_meta (status_meta_id));
+diesel::joinable!(transaction_pre_balances -> transaction_status_meta (status_meta_id));
+diesel::joinable!(transaction_pre_token_balances -> transaction_status_meta (status_meta_id));
+diesel::joinable!(transaction_rewards -> transaction_status_meta (status_meta_id));
+diesel::joinable!(transaction_signatures -> sanitized_transactions (sanitized_transaction_id));
+diesel::joinable!(transaction_status_meta -> transactions (transaction_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
-    orders,
-    pools,
-    protocols,
+    accounts,
+    sanitized_transactions,
+    slots,
+    transaction_inner_instruction,
+    transaction_inner_instructions,
+    transaction_log_messages,
+    transaction_post_balances,
+    transaction_post_token_balances,
+    transaction_pre_balances,
+    transaction_pre_token_balances,
+    transaction_rewards,
+    transaction_signatures,
+    transaction_status_meta,
     transactions,
-    user_swaps,
-    users,
 );
