@@ -14,16 +14,25 @@ use {
 lazy_static::lazy_static! {
     pub static ref REGISTRY: Registry = Registry::new();
 
-    pub static ref UPLOAD_ACCOUNTS_TOTAL: IntCounterVec = IntCounterVec::new(Opts::new("upload_accounts_total", "Status of uploaded accounts"), &["status"]).unwrap();
+    pub static ref UPLOAD_ACCOUNTS_TOTAL: IntCounterVec = IntCounterVec::new(
+        Opts::new("upload_accounts_total", "Status of uploaded accounts"),
+        &["status"]
+    ).unwrap();
 
-    pub static ref UPLOAD_SLOTS_TOTAL: IntCounterVec = IntCounterVec::new(Opts::new("upload_slots_total", "Status of uploaded slots"), &["status"]).unwrap();
+    pub static ref UPLOAD_SLOTS_TOTAL: IntCounterVec = IntCounterVec::new(
+        Opts::new("upload_slots_total", "Status of uploaded slots"),
+        &["status"]
+    ).unwrap();
 
     pub static ref UPLOAD_TRANSACTIONS_TOTAL: IntCounterVec = IntCounterVec::new(
         Opts::new("upload_transactions_total", "Status of uploaded transactions"),
         &["status"]
     ).unwrap();
 
-    static ref REDIS_STATS: GaugeVec = GaugeVec::new(Opts::new("redis_stats", "Redis connection metrics"), &["metric"]).unwrap();
+    static ref REDIS_STATS: GaugeVec = GaugeVec::new(
+        Opts::new("redis_stats", "Redis connection metrics"),
+        &["metric"]
+    ).unwrap();
 }
 
 #[derive(Debug)]
@@ -39,13 +48,14 @@ impl PrometheusService {
                 ($collector:ident) => {
                     REGISTRY
                         .register(Box::new($collector.clone()))
-                        .expect("collector can't be registered")
+                        .expect("collector can't be registered");
                 };
             }
             register!(UPLOAD_ACCOUNTS_TOTAL);
             register!(UPLOAD_SLOTS_TOTAL);
             register!(UPLOAD_TRANSACTIONS_TOTAL);
             register!(REDIS_STATS);
+
         });
 
         let runtime = Runtime::new()?;

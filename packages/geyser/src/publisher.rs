@@ -1,124 +1,153 @@
+
 use {
     crate::{
-        error::PluginError,
-        model::{ParsedAccount, ParsedEvent, RedisMessage},
+        message_wrapper::EventMessage::{self, Account, Slot, Transaction},
+        prom::{
+            UPLOAD_ACCOUNTS_TOTAL, UPLOAD_SLOTS_TOTAL,
+            UPLOAD_TRANSACTIONS_TOTAL,
+        },
+        Config, MessageWrapper, SlotStatusEvent, TransactionEvent, UpdateAccountEvent,
     },
-    log::{debug, error, info},
-    redis::AsyncCommands,
-    std::thread::{self, JoinHandle},
-    tokio::runtime::Runtime,
-    tokio::sync::mpsc::{self, Sender},
+    prost::Message,
+    redis::{
+        AsyncCommands, RedisError,
+    },
+    std::time::Duration,
 };
 
-pub struct RedisPublisher {
-    sender: Sender<RedisMessage>,
-    worker_handle: Option<JoinHandle<()>>,
+pub struct Publisher {
+    client: redis::Client,
+    shutdown_timeout: Duration,
 }
 
-impl RedisPublisher {
-    pub fn new(redis_url: String) -> Result<Self, PluginError> {
-        let (sender, mut receiver) = mpsc::channel::<RedisMessage>(10000);
-
-        let worker_handle = thread::spawn(move || {
-            let rt = Runtime::new().expect("Failed to create Tokio runtime");
-            rt.block_on(async move {
-                info!("Redis worker thread started.");
-                let client = redis::Client::open(redis_url).unwrap();
-                let mut conn = client.get_async_connection().await.unwrap();
-
-                while let Some(msg) = receiver.recv().await {
-                    let result: redis::RedisResult<()> = match msg {
-                        RedisMessage::AccountUpdate {
-                            stream,
-                            account_pubkey,
-                            data,
-                            slot,
-                        } => {
-                            let payload = serde_json::to_string(&data).unwrap_or_default();
-                            conn.xadd(
-                                stream,
-                                "*",
-                                &[
-                                    ("pubkey", &account_pubkey),
-                                    ("data", &payload),
-                                    ("slot", &slot.to_string()),
-                                ],
-                            )
-                            .await
-                        }
-                        RedisMessage::Event {
-                            stream,
-                            signature,
-                            signers,
-                            data,
-                            slot,
-                        } => {
-                            let payload = serde_json::to_string(&data).unwrap_or_default();
-                            let signers_json = serde_json::to_string(&signers).unwrap_or_default();
-                            conn.xadd(
-                                stream,
-                                "*",
-                                &[
-                                    ("signature", &signature),
-                                    ("signers", &signers_json),
-                                    ("data", &payload),
-                                    ("slot", &slot.to_string()),
-                                ],
-                            )
-                            .await
-                        }
-                    };
-
-                    if let Err(e) = result {
-                        error!("Failed to publish to Redis stream: {}", e);
-                    }
-                }
-                info!("Redis worker thread shutting down.");
-            });
-        });
-
-        Ok(Self {
-            sender,
-            worker_handle: Some(worker_handle),
-        })
-    }
-
-    pub fn publish_account_update(
-        &self,
-        parsed_account: ParsedAccount,
-        slot: u64,
-    ) -> Result<(), PluginError> {
-        let msg = RedisMessage::AccountUpdate {
-            stream: parsed_account.account_stream,
-            account_pubkey: parsed_account.account_pubkey,
-            data: parsed_account.data_json,
-            slot,
-        };
-        self.sender
-            .try_send(msg)
-            .map_err(|e| PluginError::ChannelSendError(e.to_string()))
-    }
-
-    pub fn publish_event(&self, parsed_event: ParsedEvent, slot: u64) -> Result<(), PluginError> {
-        let msg = RedisMessage::Event {
-            stream: parsed_event.event_stream,
-            signature: parsed_event.transaction_signature,
-            signers: parsed_event.signers,
-            data: parsed_event.data_json,
-            slot,
-        };
-        self.sender
-            .try_send(msg)
-            .map_err(|e| PluginError::ChannelSendError(e.to_string()))
-    }
-}
-
-impl Drop for RedisPublisher {
-    fn drop(&mut self) {
-        info!("Shutting down Redis publisher.");
-        if let Some(handle) = self.worker_handle.take() {
-            let _ = handle.join();
+impl Publisher {
+    pub fn new(client: redis::Client, config: &Config) -> Self {
+        Self {
+            client,
+            shutdown_timeout: Duration::from_millis(config.shutdown_timeout_ms),
         }
-        info!("Redis publisher shut down complete.");
+    }
+
+    pub async fn update_account(
+        &self,
+        ev: UpdateAccountEvent,
+        wrap_messages: bool,
+        stream: &str,
+    ) -> Result<(), RedisError> {
+        if stream.is_empty() {
+            return Ok(());
+        }
+
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
+        
+        let (key, data) = if wrap_messages {
+            let key = self.create_key_with_prefix(&ev.pubkey, 65u8);
+            let buf = Self::encode_with_wrapper(Account(Box::new(ev)));
+            (key, buf)
+        } else {
+            (hex::encode(&ev.pubkey), ev.encode_to_vec())
+        };
+
+        let fields = vec![
+            ("key", key.as_bytes()),
+            ("data", &data),
+        ];
+
+        let _: String = conn.xadd(stream, "*", &fields).await?;
+        
+        UPLOAD_ACCOUNTS_TOTAL
+            .with_label_values(&["success"])
+            .inc();
+        
+        Ok(())
+    }
+
+    pub async fn update_slot_status(
+        &self,
+        ev: SlotStatusEvent,
+        wrap_messages: bool,
+        stream: &str,
+    ) -> Result<(), RedisError> {
+        if stream.is_empty() {
+            return Ok(());
+        }
+
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
+        
+        let (key, data) = if wrap_messages {
+            let slot_bytes = ev.slot.to_le_bytes();
+            let key = self.create_key_with_prefix(&slot_bytes, 83u8);
+            let buf = Self::encode_with_wrapper(Slot(Box::new(ev)));
+            (key, buf)
+        } else {
+            (ev.slot.to_string(), ev.encode_to_vec())
+        };
+
+        let fields = vec![
+            ("key", key.as_bytes()),
+            ("data", &data),
+        ];
+
+        let _: String = conn.xadd(stream, "*", &fields).await?;
+        
+        UPLOAD_SLOTS_TOTAL
+            .with_label_values(&["success"])
+            .inc();
+        
+        Ok(())
+    }
+
+    pub async fn update_transaction(
+        &self,
+        ev: TransactionEvent,
+        wrap_messages: bool,
+        stream: &str,
+    ) -> Result<(), RedisError> {
+        if stream.is_empty() {
+            return Ok(());
+        }
+
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
+        
+        let (key, data) = if wrap_messages {
+            let key = self.create_key_with_prefix(&ev.signature, 84u8);
+            let buf = Self::encode_with_wrapper(Transaction(Box::new(ev)));
+            (key, buf)
+        } else {
+            (hex::encode(&ev.signature), ev.encode_to_vec())
+        };
+
+        let fields = vec![
+            ("key", key.as_bytes()),
+            ("data", &data),
+        ];
+
+        let _: String = conn.xadd(stream, "*", &fields).await?;
+        
+        UPLOAD_TRANSACTIONS_TOTAL
+            .with_label_values(&["success"])
+            .inc();
+        
+        Ok(())
+    }
+
+    fn encode_with_wrapper(message: EventMessage) -> Vec<u8> {
+        MessageWrapper {
+            event_message: Some(message),
+        }
+        .encode_to_vec()
+    }
+
+    fn create_key_with_prefix(&self, data: &[u8], prefix: u8) -> String {
+        let mut temp_key = Vec::with_capacity(data.len() + 1);
+        temp_key.push(prefix);
+        temp_key.extend_from_slice(data);
+        hex::encode(temp_key)
+    }
+}
+
+impl Drop for Publisher {
+    fn drop(&mut self) {
+        // Redis connections are automatically cleaned up
     }
 }
