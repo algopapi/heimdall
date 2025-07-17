@@ -1,0 +1,28 @@
+{
+  "libpath": "/Users/tarun/Developer/projects/heimdall/target/release/libgeyser.dylib",
+  "redis": {
+    "url": "redis://localhost:6379",
+    "max_connections": 10,
+    "connection_timeout_ms": 5000,
+    "database": 0
+  },
+  "shutdown_timeout_ms": 30000,
+  "filters": [
+    {
+      "update_account_stream": "solana:account_updates",
+      "slot_status_stream": "solana:slot_status",
+      "transaction_stream": "solana:transactions",
+      "program_ignores": [
+        "Sysvar1111111111111111111111111111111111111",
+        "Vote111111111111111111111111111111111111111"
+      ],
+      "program_filters": [
+        "FHBJYf3tdoh9nwpwSTZi9AK9Sjn16oLQgdiDDfZSaG9e"
+      ],
+      "publish_all_accounts": false,
+      "wrap_messages": false,
+      "include_vote_transactions": false,
+      "include_failed_transactions": true
+    }
+  ]
+}
