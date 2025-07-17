@@ -1,40 +1,19 @@
-use poem::{
-    get, handler, listener::TcpListener, middleware::Tracing, web::Path, EndpointExt, Route, Server,
-};
+use poem::{get, listener::TcpListener, middleware::Tracing, EndpointExt, Route, Server};
 
-#[handler]
-fn hello(Path(name): Path<String>) -> String {
-    format!("hello: {name}")
-}
+mod routes;
+use routes::{get_accounts, get_slots, get_transactions};
 
 #[tokio::main]
 async fn main() -> Result<(), std::io::Error> {
     let api_v1 = Route::new()
-        .at("/transactions", get(transactions))
-        .at("/slots", get(slots))
-        .at("/accounts", get(accounts));
+        .at("/transactions", get(get_transactions))
+        .at("/slots", get(get_slots))
+        .at("/accounts", get(get_accounts));
 
-    let app = Route::new()
-        .nest("/api/v1", api_v1)
-        .with(Tracing);
+    let app = Route::new().nest("/api/v1", api_v1).with(Tracing);
 
     Server::new(TcpListener::bind("0.0.0.0:3000"))
-        .name("hello-world")
+        .name("heimdall-api")
         .run(app)
         .await
-}
-
-#[handler]
-fn transactions() -> String {
-    "transactions endpoint".to_string()
-}
-
-#[handler]
-fn slots() -> String {
-    "slots endpoint".to_string()
-}
-
-#[handler]
-fn accounts() -> String {
-    "accounts endpoint".to_string()
 }
