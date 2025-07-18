@@ -1,10 +1,6 @@
-
 use agave_geyser_plugin_interface::geyser_plugin_interface::SlotStatus as PluginSlotStatus;
 
-include!(concat!(
-    env!("OUT_DIR"),
-    "/heimdall.types.rs"
-));
+include!(concat!(env!("OUT_DIR"), "/heimdall.types.rs"));
 
 impl From<PluginSlotStatus> for SlotStatus {
     fn from(other: PluginSlotStatus) -> Self {

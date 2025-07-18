@@ -1,4 +1,3 @@
-use anyhow::Result;
 use tracing::info;
 
 mod database;
@@ -6,10 +5,10 @@ mod subscriber;
 use subscriber::RedisStreamSubscriber;
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
     info!("Starting Heimdall DB Processor");
-    
+
     let redis_url =
         std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
 

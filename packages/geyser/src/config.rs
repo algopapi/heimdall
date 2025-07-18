@@ -13,32 +13,24 @@ pub struct Config {
     #[allow(dead_code)]
     libpath: String,
 
-    /// Redis config.
     pub redis: RedisConfig,
 
-    /// Graceful shutdown timeout.
     #[serde(default)]
     pub shutdown_timeout_ms: u64,
 
-    /// Accounts, transactions filters
     pub filters: Vec<ConfigFilter>,
 
-    /// Prometheus endpoint.
     #[serde(default)]
     pub prometheus: Option<SocketAddr>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct RedisConfig {
-    /// Redis connection URL (e.g., "redis://localhost:6379")
     pub url: String,
-    /// Maximum number of connections in the pool
     #[serde(default = "default_max_connections")]
     pub max_connections: u32,
-    /// Connection timeout in milliseconds
     #[serde(default = "default_connection_timeout")]
     pub connection_timeout_ms: u64,
-    /// Redis database number
     #[serde(default)]
     pub database: i64,
 }
@@ -69,7 +61,6 @@ impl Default for Config {
 }
 
 impl Config {
-    /// Read plugin from JSON file.
     pub fn read_from<P: AsRef<Path>>(config_path: P) -> PluginResult<Self> {
         let file = File::open(config_path)?;
         let this: Self = serde_json::from_reader(file)
@@ -77,7 +68,6 @@ impl Config {
         Ok(this)
     }
 
-    /// Create Redis client from config.
     pub fn redis_client(&self) -> Result<redis::Client, redis::RedisError> {
         redis::Client::open(self.redis.url.as_str())
     }
@@ -87,29 +77,18 @@ impl Config {
     }
 }
 
-/// Plugin config.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct ConfigFilter {
-    /// Redis stream to send account updates to.
     pub update_account_stream: String,
-    /// Redis stream to send slot status updates to.
     pub slot_status_stream: String,
-    /// Redis stream to send transaction to.
     pub transaction_stream: String,
-    /// List of programs to ignore.
     pub program_ignores: Vec<String>,
-    /// List of programs to include
     pub program_filters: Vec<String>,
-    // List of accounts to include
     pub account_filters: Vec<String>,
-    /// Publish all accounts on startup.
     pub publish_all_accounts: bool,
-    /// Publish vote transactions.
     pub include_vote_transactions: bool,
-    /// Publish failed transactions.
     pub include_failed_transactions: bool,
-    /// Wrap all event message in a single message type.
     pub wrap_messages: bool,
 }
 

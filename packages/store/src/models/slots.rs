@@ -20,11 +20,7 @@ pub struct NewSlot {
 }
 
 impl Slot {
-    pub fn new(
-        slot: i64,
-        parent: Option<i64>,
-        status: i32,
-    ) -> NewSlot {
+    pub fn new(slot: i64, parent: Option<i64>, status: i32) -> NewSlot {
         NewSlot {
             slot,
             parent,

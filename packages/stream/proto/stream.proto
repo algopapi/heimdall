@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+import "google/protobuf/wrappers.proto";
+
+package heimdall.stream;
+
+service HeimdallStream {
+    rpc StreamAccounts(StreamRequest) returns (stream AccountUpdate);
+    rpc StreamSlots(StreamRequest) returns (stream SlotUpdate);
+    rpc StreamTransactions(StreamRequest) returns (stream TransactionUpdate);
+    rpc StreamAll(StreamRequest) returns (stream EventUpdate);
+}
+
+message StreamRequest {
+    // Optional filter parameters can be added here
+}
+
+message AccountUpdate {
+    uint64 slot = 1;
+    bytes pubkey = 2;
+    uint64 lamports = 3;
+    bytes owner = 4;
+    bool executable = 5;
+    uint64 rent_epoch = 6;
+    bytes data = 7;
+    uint64 write_version = 8;
+    optional bytes txn_signature = 9;
+}
+
+message SlotUpdate {
+    uint64 slot = 1;
+    uint64 parent = 2;
+    uint32 status = 3;
+}
+
+message TransactionUpdate {
+    bytes signature = 1;
+    bool is_vote = 2;
+    uint64 slot = 3;
+    uint64 index = 4;
+}
+
+message EventUpdate {
+    oneof event {
+        AccountUpdate account = 1;
+        SlotUpdate slot = 2;
+        TransactionUpdate transaction = 3;
+    }
+}

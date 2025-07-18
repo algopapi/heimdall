@@ -1,4 +1,3 @@
-
 use agave_geyser_plugin_interface::geyser_plugin_interface::GeyserPlugin;
 
 mod config;

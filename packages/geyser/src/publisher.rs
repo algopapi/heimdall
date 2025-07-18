@@ -1,20 +1,15 @@
-
 use {
     crate::{
         message_wrapper::EventMessage::{self, Account, Slot, Transaction},
-        prom::{
-            UPLOAD_ACCOUNTS_TOTAL, UPLOAD_SLOTS_TOTAL,
-            UPLOAD_TRANSACTIONS_TOTAL,
-        },
+        prom::{UPLOAD_ACCOUNTS_TOTAL, UPLOAD_SLOTS_TOTAL, UPLOAD_TRANSACTIONS_TOTAL},
         Config, MessageWrapper, SlotStatusEvent, TransactionEvent, UpdateAccountEvent,
     },
     prost::Message,
-    redis::{
-        AsyncCommands, RedisError,
-    },
+    redis::{AsyncCommands, RedisError},
     std::time::Duration,
 };
 
+#[allow(dead_code)]
 pub struct Publisher {
     client: redis::Client,
     shutdown_timeout: Duration,
@@ -39,7 +34,7 @@ impl Publisher {
         }
 
         let mut conn = self.client.get_multiplexed_async_connection().await?;
-        
+
         let (key, data) = if wrap_messages {
             let key = self.create_key_with_prefix(&ev.pubkey, 65u8);
             let buf = Self::encode_with_wrapper(Account(Box::new(ev)));
@@ -48,17 +43,12 @@ impl Publisher {
             (hex::encode(&ev.pubkey), ev.encode_to_vec())
         };
 
-        let fields = vec![
-            ("key", key.as_bytes()),
-            ("data", &data),
-        ];
+        let fields = vec![("key", key.as_bytes()), ("data", &data)];
 
         let _: String = conn.xadd(stream, "*", &fields).await?;
-        
-        UPLOAD_ACCOUNTS_TOTAL
-            .with_label_values(&["success"])
-            .inc();
-        
+
+        UPLOAD_ACCOUNTS_TOTAL.with_label_values(&["success"]).inc();
+
         Ok(())
     }
 
@@ -73,7 +63,7 @@ impl Publisher {
         }
 
         let mut conn = self.client.get_multiplexed_async_connection().await?;
-        
+
         let (key, data) = if wrap_messages {
             let slot_bytes = ev.slot.to_le_bytes();
             let key = self.create_key_with_prefix(&slot_bytes, 83u8);
@@ -83,17 +73,12 @@ impl Publisher {
             (ev.slot.to_string(), ev.encode_to_vec())
         };
 
-        let fields = vec![
-            ("key", key.as_bytes()),
-            ("data", &data),
-        ];
+        let fields = vec![("key", key.as_bytes()), ("data", &data)];
 
         let _: String = conn.xadd(stream, "*", &fields).await?;
-        
-        UPLOAD_SLOTS_TOTAL
-            .with_label_values(&["success"])
-            .inc();
-        
+
+        UPLOAD_SLOTS_TOTAL.with_label_values(&["success"]).inc();
+
         Ok(())
     }
 
@@ -108,7 +93,7 @@ impl Publisher {
         }
 
         let mut conn = self.client.get_multiplexed_async_connection().await?;
-        
+
         let (key, data) = if wrap_messages {
             let key = self.create_key_with_prefix(&ev.signature, 84u8);
             let buf = Self::encode_with_wrapper(Transaction(Box::new(ev)));
@@ -117,17 +102,14 @@ impl Publisher {
             (hex::encode(&ev.signature), ev.encode_to_vec())
         };
 
-        let fields = vec![
-            ("key", key.as_bytes()),
-            ("data", &data),
-        ];
+        let fields = vec![("key", key.as_bytes()), ("data", &data)];
 
         let _: String = conn.xadd(stream, "*", &fields).await?;
-        
+
         UPLOAD_TRANSACTIONS_TOTAL
             .with_label_values(&["success"])
             .inc();
-        
+
         Ok(())
     }
 
@@ -147,7 +129,5 @@ impl Publisher {
 }
 
 impl Drop for Publisher {
-    fn drop(&mut self) {
-        // Redis connections are automatically cleaned up
-    }
+    fn drop(&mut self) {}
 }

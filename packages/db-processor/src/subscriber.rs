@@ -1,4 +1,3 @@
-
 use anyhow::Result;
 use base64::{engine::general_purpose, Engine as _};
 use prost::Message;
@@ -64,16 +63,18 @@ impl RedisStreamSubscriber {
     }
 
     async fn consume_streams(&mut self) -> Result<()> {
-        let streams = vec!["heimdall:accounts", "heimdall:slots", "heimdall:transactions"];
+        let streams = vec![
+            "heimdall:accounts",
+            "heimdall:slots",
+            "heimdall:transactions",
+        ];
         let ids = vec![">", ">", ">"];
         let opts = StreamReadOptions::default()
             .group(&self.consumer_group, &self.consumer_name)
             .count(10)
             .block(1000);
         let results: RedisResult<redis::streams::StreamReadReply> =
-            self.connection
-                .xread_options(&streams, &ids, &opts)
-                .await;
+            self.connection.xread_options(&streams, &ids, &opts).await;
         match results {
             Ok(stream_reply) => {
                 for stream_key in stream_reply.keys {
@@ -191,7 +192,10 @@ impl RedisStreamSubscriber {
                     .await;
             }
             Err(e) => {
-                warn!("Failed to decode transaction update data as protobuf: {}", e);
+                warn!(
+                    "Failed to decode transaction update data as protobuf: {}",
+                    e
+                );
                 warn!("Raw data: {:?}", String::from_utf8_lossy(data));
             }
         }

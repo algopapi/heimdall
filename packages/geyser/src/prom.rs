@@ -55,7 +55,6 @@ impl PrometheusService {
             register!(UPLOAD_SLOTS_TOTAL);
             register!(UPLOAD_TRANSACTIONS_TOTAL);
             register!(REDIS_STATS);
-
         });
 
         let runtime = Runtime::new()?;

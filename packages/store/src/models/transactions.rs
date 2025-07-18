@@ -1,7 +1,5 @@
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
-
-// Main transaction table
 #[derive(Debug, Clone, Serialize, Deserialize, Queryable, Selectable, Insertable)]
 #[diesel(table_name = crate::schema::transactions)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
@@ -22,7 +20,6 @@ pub struct NewTransaction {
     pub idx: i64,
 }
 
-// Sanitized transactions
 #[derive(Debug, Clone, Serialize, Deserialize, Queryable, Selectable, Insertable)]
 #[diesel(table_name = crate::schema::sanitized_transactions)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
@@ -41,7 +38,6 @@ pub struct NewSanitizedTransaction {
     pub is_simple_vote_transaction: bool,
 }
 
-// Transaction signatures
 #[derive(Debug, Clone, Serialize, Deserialize, Queryable, Selectable, Insertable)]
 #[diesel(table_name = crate::schema::transaction_signatures)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
@@ -58,7 +54,6 @@ pub struct NewTransactionSignature {
     pub signature: Vec<u8>,
 }
 
-// Transaction status meta
 #[derive(Debug, Clone, Serialize, Deserialize, Queryable, Selectable, Insertable)]
 #[diesel(table_name = crate::schema::transaction_status_meta)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
@@ -79,7 +74,6 @@ pub struct NewTransactionStatusMeta {
     pub fee: i64,
 }
 
-// Transaction pre balances
 #[derive(Debug, Clone, Serialize, Deserialize, Queryable, Selectable, Insertable)]
 #[diesel(table_name = crate::schema::transaction_pre_balances)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
@@ -96,7 +90,6 @@ pub struct NewTransactionPreBalance {
     pub balance: i64,
 }
 
-// Transaction post balances
 #[derive(Debug, Clone, Serialize, Deserialize, Queryable, Selectable, Insertable)]
 #[diesel(table_name = crate::schema::transaction_post_balances)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
@@ -113,7 +106,6 @@ pub struct NewTransactionPostBalance {
     pub balance: i64,
 }
 
-// Transaction log messages
 #[derive(Debug, Clone, Serialize, Deserialize, Queryable, Selectable, Insertable)]
 #[diesel(table_name = crate::schema::transaction_log_messages)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
@@ -130,7 +122,6 @@ pub struct NewTransactionLogMessage {
     pub log_message: String,
 }
 
-// Transaction inner instructions
 #[derive(Debug, Clone, Serialize, Deserialize, Queryable, Selectable, Insertable)]
 #[diesel(table_name = crate::schema::transaction_inner_instructions)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
@@ -147,7 +138,6 @@ pub struct NewTransactionInnerInstructions {
     pub idx: i32,
 }
 
-// Transaction inner instruction
 #[derive(Debug, Clone, Serialize, Deserialize, Queryable, Selectable, Insertable)]
 #[diesel(table_name = crate::schema::transaction_inner_instruction)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
@@ -168,7 +158,6 @@ pub struct NewTransactionInnerInstruction {
     pub data: Vec<u8>,
 }
 
-// Transaction pre token balances
 #[derive(Debug, Clone, Serialize, Deserialize, Queryable, Selectable, Insertable)]
 #[diesel(table_name = crate::schema::transaction_pre_token_balances)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
@@ -197,7 +186,6 @@ pub struct NewTransactionPreTokenBalance {
     pub ui_amount_string: Option<String>,
 }
 
-// Transaction post token balances
 #[derive(Debug, Clone, Serialize, Deserialize, Queryable, Selectable, Insertable)]
 #[diesel(table_name = crate::schema::transaction_post_token_balances)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
@@ -226,7 +214,6 @@ pub struct NewTransactionPostTokenBalance {
     pub ui_amount_string: Option<String>,
 }
 
-// Transaction rewards
 #[derive(Debug, Clone, Serialize, Deserialize, Queryable, Selectable, Insertable)]
 #[diesel(table_name = crate::schema::transaction_rewards)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
@@ -251,14 +238,8 @@ pub struct NewTransactionReward {
     pub commission: Option<i32>,
 }
 
-// Implementation methods
 impl Transaction {
-    pub fn new(
-        signature: Vec<u8>,
-        is_vote: bool,
-        slot: i64,
-        idx: i64,
-    ) -> NewTransaction {
+    pub fn new(signature: Vec<u8>, is_vote: bool, slot: i64, idx: i64) -> NewTransaction {
         NewTransaction {
             signature,
             is_vote,

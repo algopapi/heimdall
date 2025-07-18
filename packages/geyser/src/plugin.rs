@@ -1,10 +1,5 @@
-
 use {
-    crate::{
-        event::*,
-        filter::Filter,
-        Config, PrometheusService, Publisher,
-    },
+    crate::{event::*, filter::Filter, Config, PrometheusService, Publisher},
     agave_geyser_plugin_interface::geyser_plugin_interface::{
         GeyserPlugin, GeyserPluginError as PluginError, ReplicaAccountInfoV3,
         ReplicaAccountInfoVersions, ReplicaTransactionInfoV2, ReplicaTransactionInfoVersions,

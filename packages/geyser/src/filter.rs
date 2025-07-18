@@ -1,4 +1,3 @@
-
 use {
     crate::ConfigFilter,
     solana_pubkey::Pubkey,

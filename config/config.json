@@ -9,15 +9,15 @@
   "shutdown_timeout_ms": 30000,
   "filters": [
     {
-      "update_account_stream": "solana:account_updates",
-      "slot_status_stream": "solana:slot_status",
-      "transaction_stream": "solana:transactions",
+      "update_account_stream": "heimdall:accounts",
+      "slot_status_stream": "heimdall:slots",
+      "transaction_stream": "heimdall:transactions",
       "program_ignores": [
         "Sysvar1111111111111111111111111111111111111",
         "Vote111111111111111111111111111111111111111"
       ],
       "program_filters": [
-        "FHBJYf3tdoh9nwpwSTZi9AK9Sjn16oLQgdiDDfZSaG9e"
+        "BRwPE9KLqMy75QqfUJX3V9kymW3vG2Wo4Sr7kiG13TPb"
       ],
       "publish_all_accounts": false,
       "wrap_messages": false,
