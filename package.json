@@ -1,9 +1,21 @@
 {
   "name": "@heimdall/source",
   "version": "0.0.0",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "scripts": {
-    
+    "build": "cargo build --release",
+    "build:dev": "cargo build",
+    "build:geyser": "cargo build --release --package geyser",
+    "start:api": "cargo run --package api",
+    "start:stream": "cargo run --package stream --bin server",
+    "start:client": "cargo run --package stream --bin client",
+    "start:db-processor": "cargo run --package db-processor",
+    "migrate": "cd packages/store && diesel migration run",
+    "migrate:reset": "cd packages/store && diesel migration revert --all && diesel migration run",
+    "dev": "cargo build && npm run start:api",
+    "clean": "cargo clean",
+    "test": "cargo test",
+    "check": "cargo check"
   },
   "private": true,
   "dependencies": {},
