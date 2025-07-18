@@ -1,6 +1,7 @@
 # heimdall
 
-defi analytics engine for solana blockchain data processing and streaming
+solana geyser plugin with redis, grpc, and postgres for real-time blockchain data streaming, analytics, and client updates
+<img width="919" height="671" alt="Screenshot 2025-07-18 at 7 25 20 AM" src="https://github.com/user-attachments/assets/5e042e4b-425a-4e13-b849-d4c3e79d682c" />
 
 ## installation
 
