@@ -20,6 +20,19 @@ pub struct FilterSet {
     pub include_votes: bool,
     #[serde(default)]
     pub include_failed: bool,
+
+    /// Optional memcmp filters (byte-prefix) applied to transaction instructions.
+    #[serde(default)]
+    pub memcmp: Vec<MemcmpConfig>,
+}
+
+/// Simple representation of a memcmp filter – only supports prefix matching (offset + hex bytes).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct MemcmpConfig {
+    /// Byte offset within the instruction data (0 for discriminator).
+    pub offset: u32,
+    /// Hex string of bytes to match (without 0x prefix).
+    pub bytes: String,
 }
 
 impl FilterSet {
@@ -47,11 +60,23 @@ impl FilterSet {
         // ------------------------------------------------
         if !self.publish_all || !self.programs.is_empty() {
             let mut map = HashMap::new();
+
+            use helius_laserstream::grpc::SubscribeRequestFilterMemcmp;
+
             map.insert(
                 "dynamic".to_owned(),
                 SubscribeRequestFilterTransactions {
                     account_include: self.programs.clone(),
                     account_required: self.account_required.clone(),
+                    memcmp: self
+                        .memcmp
+                        .iter()
+                        .map(|m| SubscribeRequestFilterMemcmp {
+                            offset: m.offset as u64,
+                            bytes: m.bytes.clone(),
+                            encoding: Some("hex".into()),
+                        })
+                        .collect(),
                     vote: Some(self.include_votes),
                     failed: Some(self.include_failed),
                     ..Default::default()
