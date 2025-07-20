@@ -1808,10 +1808,13 @@ name = "laser-ingest"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64 0.21.7",
+ "borsh 1.5.7",
  "bs58",
  "dotenvy",
  "futures-util",
  "helius-laserstream",
+ "hex",
  "serde",
  "tokio",
  "tracing-subscriber",
