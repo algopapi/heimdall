@@ -5,9 +5,10 @@ pub mod proto_stream {
         tonic::include_file_descriptor_set!("stream_descriptor");
 }
 
-pub mod proto_events {
-    tonic::include_proto!("heimdall.types");
-}
+// This module is from the legacy system and is no longer needed
+// pub mod proto_events {
+//     tonic::include_proto!("heimdall.types");
+// }
 
 mod service;
 mod worker;

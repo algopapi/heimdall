@@ -1,19 +1,32 @@
 syntax = "proto3";
 
-import "google/protobuf/wrappers.proto";
-
 package heimdall.stream;
 
 service HeimdallStream {
+    // Legacy streams
     rpc StreamAccounts(StreamRequest) returns (stream AccountUpdate);
     rpc StreamSlots(StreamRequest) returns (stream SlotUpdate);
     rpc StreamTransactions(StreamRequest) returns (stream TransactionUpdate);
     rpc StreamAll(StreamRequest) returns (stream EventUpdate);
+
+    // V2 Pool-specific stream
+    rpc StreamPoolUpdates(PoolUpdateRequest) returns (stream PoolUpdate);
 }
 
-message StreamRequest {
-    // Optional filter parameters can be added here
+// V2 Messages
+message PoolUpdateRequest {
+    string pool_id = 1;
 }
+
+message PoolUpdate {
+    string pool_id = 1;
+    string event_type = 2; // "swap", "balance_update", etc.
+    string payload_json = 3; // The specific data for the event type
+}
+
+
+// V1 (Legacy) Messages
+message StreamRequest {}
 
 message AccountUpdate {
     uint64 slot = 1;

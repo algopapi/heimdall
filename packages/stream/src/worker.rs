@@ -1,321 +1,85 @@
-use crate::proto_events;
-use crate::proto_stream::{AccountUpdate, EventUpdate, SlotUpdate, TransactionUpdate};
+use crate::proto_stream::PoolUpdate;
 use anyhow::Result;
-use prost::Message;
 use redis::{streams::StreamReadOptions, AsyncCommands, RedisResult};
-use std::collections::HashMap;
+use serde_json::Value;
 use tokio::sync::mpsc;
-use tokio::time::{sleep, Duration};
 use tonic::Status;
 use uuid::Uuid;
 
-pub async fn stream_accounts_worker(
+pub async fn stream_pool_updates_worker(
     redis_client: redis::Client,
-    tx: mpsc::Sender<Result<AccountUpdate, Status>>,
+    pool_id_filter: String,
+    tx: mpsc::Sender<Result<PoolUpdate, Status>>,
 ) -> Result<()> {
     let mut connection = redis_client.get_multiplexed_async_connection().await?;
-    let consumer_group = "stream-accounts-group";
-    let consumer_name = format!("stream-accounts-{}", Uuid::new_v4());
+    let consumer_group = "stream-pool-updates-group";
+    // Each client gets its own consumer name to avoid competing for messages
+    let consumer_name = format!("stream-pool-updates-{}", Uuid::new_v4());
 
+    let stream_name = "heimdall:pool_events";
     let _: RedisResult<String> = connection
-        .xgroup_create_mkstream("heimdall:accounts", consumer_group, "0")
+        .xgroup_create_mkstream(stream_name, consumer_group, "0")
         .await;
 
     loop {
-        let opts = StreamReadOptions::default()
-            .group(consumer_group, &consumer_name)
-            .count(10)
-            .block(1000);
-
-        let results: RedisResult<redis::streams::StreamReadReply> = connection
-            .xread_options(&["heimdall:accounts"], &[">"], &opts)
-            .await;
-
-        match results {
-            Ok(stream_reply) => {
-                for stream_key in stream_reply.keys {
-                    for stream_id in stream_key.ids {
-                        let mut fields = HashMap::new();
-                        for (key, value) in stream_id.map.iter() {
-                            fields.insert(key.clone(), value.clone());
-                        }
-
-                        if let Some(redis::Value::Data(data)) = fields.get("data") {
-                            if let Ok(proto_event) =
-                                proto_events::UpdateAccountEvent::decode(&data[..])
-                            {
-                                let account_update = AccountUpdate {
-                                    slot: proto_event.slot,
-                                    pubkey: proto_event.pubkey,
-                                    lamports: proto_event.lamports,
-                                    owner: proto_event.owner,
-                                    executable: proto_event.executable,
-                                    rent_epoch: proto_event.rent_epoch,
-                                    data: proto_event.data,
-                                    write_version: proto_event.write_version,
-                                    txn_signature: proto_event.txn_signature,
-                                };
-
-                                if tx.send(Ok(account_update)).await.is_err() {
-                                    break;
-                                }
-
-                                let _: RedisResult<i32> = connection
-                                    .xack("heimdall:accounts", consumer_group, &[&stream_id.id])
-                                    .await;
-                            }
-                        }
-                    }
-                }
-            }
-            Err(_) => {
-                sleep(Duration::from_millis(100)).await;
-            }
+        if tx.is_closed() {
+            // Client has disconnected, so we can clean up and exit.
+            let _: RedisResult<i32> = connection
+                .xgroup_delconsumer(stream_name, consumer_group, &consumer_name)
+                .await;
+            tracing::info!(consumer=%consumer_name, "Client disconnected, closing worker.");
+            break;
         }
-    }
-}
 
-pub async fn stream_slots_worker(
-    redis_client: redis::Client,
-    tx: mpsc::Sender<Result<SlotUpdate, Status>>,
-) -> Result<()> {
-    let mut connection = redis_client.get_multiplexed_async_connection().await?;
-    let consumer_group = "stream-slots-group";
-    let consumer_name = format!("stream-slots-{}", Uuid::new_v4());
-
-    let _: RedisResult<String> = connection
-        .xgroup_create_mkstream("heimdall:slots", consumer_group, "0")
-        .await;
-
-    loop {
         let opts = StreamReadOptions::default()
             .group(consumer_group, &consumer_name)
             .count(10)
-            .block(1000);
+            .block(5000); // Block for 5 seconds
 
         let results: RedisResult<redis::streams::StreamReadReply> = connection
-            .xread_options(&["heimdall:slots"], &[">"], &opts)
+            .xread_options(&[stream_name], &[">"], &opts)
             .await;
 
-        match results {
-            Ok(stream_reply) => {
-                for stream_key in stream_reply.keys {
-                    for stream_id in stream_key.ids {
-                        let mut fields = HashMap::new();
-                        for (key, value) in stream_id.map.iter() {
-                            fields.insert(key.clone(), value.clone());
-                        }
-
-                        if let Some(redis::Value::Data(data)) = fields.get("data") {
-                            if let Ok(proto_event) =
-                                proto_events::SlotStatusEvent::decode(&data[..])
+        if let Ok(stream_reply) = results {
+            for stream_key in stream_reply.keys {
+                for stream_id in stream_key.ids {
+                    if let Some(redis::Value::Data(data)) = stream_id.map.get("data") {
+                        if let Ok(json_val) = serde_json::from_slice::<Value>(data) {
+                            if let Some(pool_id) = json_val.get("pool_id").and_then(|v| v.as_str())
                             {
-                                let slot_update = SlotUpdate {
-                                    slot: proto_event.slot,
-                                    parent: proto_event.parent,
-                                    status: proto_event.status as u32,
-                                };
+                                // ---- THIS IS THE KEY FILTERING LOGIC ----
+                                if pool_id == pool_id_filter {
+                                    let event_type = json_val
+                                        .get("event_type")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or_default()
+                                        .to_string();
 
-                                if tx.send(Ok(slot_update)).await.is_err() {
-                                    break;
-                                }
+                                    let payload =
+                                        json_val.get("payload").cloned().unwrap_or(Value::Null);
 
-                                let _: RedisResult<i32> = connection
-                                    .xack("heimdall:slots", consumer_group, &[&stream_id.id])
-                                    .await;
-                            }
-                        }
-                    }
-                }
-            }
-            Err(_) => {
-                sleep(Duration::from_millis(100)).await;
-            }
-        }
-    }
-}
+                                    let pool_update = PoolUpdate {
+                                        pool_id: pool_id.to_string(),
+                                        event_type,
+                                        payload_json: payload.to_string(),
+                                    };
 
-pub async fn stream_transactions_worker(
-    redis_client: redis::Client,
-    tx: mpsc::Sender<Result<TransactionUpdate, Status>>,
-) -> Result<()> {
-    let mut connection = redis_client.get_multiplexed_async_connection().await?;
-    let consumer_group = "stream-transactions-group";
-    let consumer_name = format!("stream-transactions-{}", Uuid::new_v4());
-
-    let _: RedisResult<String> = connection
-        .xgroup_create_mkstream("heimdall:transactions", consumer_group, "0")
-        .await;
-
-    loop {
-        let opts = StreamReadOptions::default()
-            .group(consumer_group, &consumer_name)
-            .count(10)
-            .block(1000);
-
-        let results: RedisResult<redis::streams::StreamReadReply> = connection
-            .xread_options(&["heimdall:transactions"], &[">"], &opts)
-            .await;
-
-        match results {
-            Ok(stream_reply) => {
-                for stream_key in stream_reply.keys {
-                    for stream_id in stream_key.ids {
-                        let mut fields = HashMap::new();
-                        for (key, value) in stream_id.map.iter() {
-                            fields.insert(key.clone(), value.clone());
-                        }
-
-                        if let Some(redis::Value::Data(data)) = fields.get("data") {
-                            if let Ok(proto_event) =
-                                proto_events::TransactionEvent::decode(&data[..])
-                            {
-                                let transaction_update = TransactionUpdate {
-                                    signature: proto_event.signature,
-                                    is_vote: proto_event.is_vote,
-                                    slot: proto_event.slot,
-                                    index: proto_event.index,
-                                };
-
-                                if tx.send(Ok(transaction_update)).await.is_err() {
-                                    break;
-                                }
-
-                                let _: RedisResult<i32> = connection
-                                    .xack("heimdall:transactions", consumer_group, &[&stream_id.id])
-                                    .await;
-                            }
-                        }
-                    }
-                }
-            }
-            Err(_) => {
-                sleep(Duration::from_millis(100)).await;
-            }
-        }
-    }
-}
-
-pub async fn stream_all_worker(
-    redis_client: redis::Client,
-    tx: mpsc::Sender<Result<EventUpdate, Status>>,
-) -> Result<()> {
-    let mut connection = redis_client.get_multiplexed_async_connection().await?;
-    let consumer_group = "stream-all-group";
-    let consumer_name = format!("stream-all-{}", Uuid::new_v4());
-
-    let streams = [
-        "heimdall:accounts",
-        "heimdall:slots",
-        "heimdall:transactions",
-    ];
-
-    for stream in &streams {
-        let _: RedisResult<String> = connection
-            .xgroup_create_mkstream(stream, consumer_group, "0")
-            .await;
-    }
-
-    loop {
-        let opts = StreamReadOptions::default()
-            .group(consumer_group, &consumer_name)
-            .count(10)
-            .block(1000);
-
-        let results: RedisResult<redis::streams::StreamReadReply> = connection
-            .xread_options(&streams, &[">", ">", ">"], &opts)
-            .await;
-
-        match results {
-            Ok(stream_reply) => {
-                for stream_key in stream_reply.keys {
-                    for stream_id in stream_key.ids {
-                        let mut fields = HashMap::new();
-                        for (key, value) in stream_id.map.iter() {
-                            fields.insert(key.clone(), value.clone());
-                        }
-
-                        if let Some(redis::Value::Data(data)) = fields.get("data") {
-                            let event_update = match stream_key.key.as_str() {
-                                "heimdall:accounts" => {
-                                    if let Ok(proto_event) =
-                                        proto_events::UpdateAccountEvent::decode(&data[..])
-                                    {
-                                        Some(EventUpdate {
-                                            event: Some(
-                                                crate::proto_stream::event_update::Event::Account(
-                                                    AccountUpdate {
-                                                        slot: proto_event.slot,
-                                                        pubkey: proto_event.pubkey,
-                                                        lamports: proto_event.lamports,
-                                                        owner: proto_event.owner,
-                                                        executable: proto_event.executable,
-                                                        rent_epoch: proto_event.rent_epoch,
-                                                        data: proto_event.data,
-                                                        write_version: proto_event.write_version,
-                                                        txn_signature: proto_event.txn_signature,
-                                                    },
-                                                ),
-                                            ),
-                                        })
-                                    } else {
-                                        None
+                                    if tx.send(Ok(pool_update)).await.is_err() {
+                                        // Break inner loop if send fails
+                                        break;
                                     }
                                 }
-                                "heimdall:slots" => {
-                                    if let Ok(proto_event) =
-                                        proto_events::SlotStatusEvent::decode(&data[..])
-                                    {
-                                        Some(EventUpdate {
-                                            event: Some(
-                                                crate::proto_stream::event_update::Event::Slot(
-                                                    SlotUpdate {
-                                                        slot: proto_event.slot,
-                                                        parent: proto_event.parent,
-                                                        status: proto_event.status as u32,
-                                                    },
-                                                ),
-                                            ),
-                                        })
-                                    } else {
-                                        None
-                                    }
-                                }
-                                "heimdall:transactions" => {
-                                    if let Ok(proto_event) =
-                                        proto_events::TransactionEvent::decode(&data[..])
-                                    {
-                                        Some(EventUpdate {
-                                            event: Some(crate::proto_stream::event_update::Event::Transaction(TransactionUpdate {
-                                                signature: proto_event.signature,
-                                                is_vote: proto_event.is_vote,
-                                                slot: proto_event.slot,
-                                                index: proto_event.index,
-                                            })),
-                                        })
-                                    } else {
-                                        None
-                                    }
-                                }
-                                _ => None,
-                            };
-
-                            if let Some(event) = event_update {
-                                if tx.send(Ok(event)).await.is_err() {
-                                    break;
-                                }
                             }
-
-                            let _: RedisResult<i32> = connection
-                                .xack(&stream_key.key, consumer_group, &[&stream_id.id])
-                                .await;
                         }
+                        // Always acknowledge the message to prevent it from being re-processed
+                        // by this or other consumers.
+                        let _: RedisResult<i32> = connection
+                            .xack(&stream_key.key, consumer_group, &[&stream_id.id])
+                            .await;
                     }
                 }
             }
-            Err(_) => {
-                sleep(Duration::from_millis(100)).await;
-            }
         }
     }
+    Ok(())
 }

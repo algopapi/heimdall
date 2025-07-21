@@ -1,6 +1,6 @@
-use crate::proto_stream::heimdall_stream_server::HeimdallStream;
 use crate::proto_stream::{
-    AccountUpdate, EventUpdate, SlotUpdate, StreamRequest, TransactionUpdate,
+    heimdall_stream_server::HeimdallStream, AccountUpdate, EventUpdate, PoolUpdate,
+    PoolUpdateRequest, SlotUpdate, StreamRequest, TransactionUpdate,
 };
 use anyhow::Result;
 use redis::Client;
@@ -21,6 +21,9 @@ impl StreamService {
 
 #[tonic::async_trait]
 impl HeimdallStream for StreamService {
+    type StreamPoolUpdatesStream = ReceiverStream<Result<PoolUpdate, Status>>;
+
+    // Legacy streams are no longer used, but the types must match the trait
     type StreamAccountsStream = ReceiverStream<Result<AccountUpdate, Status>>;
     type StreamSlotsStream = ReceiverStream<Result<SlotUpdate, Status>>;
     type StreamTransactionsStream = ReceiverStream<Result<TransactionUpdate, Status>>;
@@ -30,60 +33,49 @@ impl HeimdallStream for StreamService {
         &self,
         _request: Request<StreamRequest>,
     ) -> Result<Response<Self::StreamAccountsStream>, Status> {
-        let (tx, rx) = mpsc::channel(100);
-        let redis_client = self.redis_client.clone();
-
-        tokio::spawn(async move {
-            if let Err(e) = crate::worker::stream_accounts_worker(redis_client, tx).await {
-                tracing::error!("Account stream worker failed: {}", e);
-            }
-        });
-
-        Ok(Response::new(ReceiverStream::new(rx)))
+        Err(Status::unimplemented("Legacy stream not supported"))
     }
 
     async fn stream_slots(
         &self,
         _request: Request<StreamRequest>,
     ) -> Result<Response<Self::StreamSlotsStream>, Status> {
-        let (tx, rx) = mpsc::channel(100);
-        let redis_client = self.redis_client.clone();
-
-        tokio::spawn(async move {
-            if let Err(e) = crate::worker::stream_slots_worker(redis_client, tx).await {
-                tracing::error!("Slot stream worker failed: {}", e);
-            }
-        });
-
-        Ok(Response::new(ReceiverStream::new(rx)))
+        Err(Status::unimplemented("Legacy stream not supported"))
     }
 
     async fn stream_transactions(
         &self,
         _request: Request<StreamRequest>,
     ) -> Result<Response<Self::StreamTransactionsStream>, Status> {
-        let (tx, rx) = mpsc::channel(100);
-        let redis_client = self.redis_client.clone();
-
-        tokio::spawn(async move {
-            if let Err(e) = crate::worker::stream_transactions_worker(redis_client, tx).await {
-                tracing::error!("Transaction stream worker failed: {}", e);
-            }
-        });
-
-        Ok(Response::new(ReceiverStream::new(rx)))
+        Err(Status::unimplemented("Legacy stream not supported"))
     }
 
     async fn stream_all(
         &self,
         _request: Request<StreamRequest>,
     ) -> Result<Response<Self::StreamAllStream>, Status> {
+        Err(Status::unimplemented("Legacy stream not supported"))
+    }
+
+    async fn stream_pool_updates(
+        &self,
+        request: Request<PoolUpdateRequest>,
+    ) -> Result<Response<Self::StreamPoolUpdatesStream>, Status> {
+        let pool_id = request.into_inner().pool_id;
+        if pool_id.is_empty() {
+            return Err(Status::invalid_argument("pool_id cannot be empty"));
+        }
+
         let (tx, rx) = mpsc::channel(100);
         let redis_client = self.redis_client.clone();
 
+        tracing::info!(pool_id = %pool_id, "Client subscribed to pool updates");
+
         tokio::spawn(async move {
-            if let Err(e) = crate::worker::stream_all_worker(redis_client, tx).await {
-                tracing::error!("All events stream worker failed: {}", e);
+            if let Err(e) =
+                crate::worker::stream_pool_updates_worker(redis_client, pool_id, tx).await
+            {
+                tracing::error!("Pool updates stream worker failed: {}", e);
             }
         });
 

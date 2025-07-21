@@ -6,6 +6,7 @@ use std::collections::HashMap;
 
 use crate::types::{PoolMeta, PoolVariant};
 
+pub mod events;
 pub mod dbc;
 pub mod amm;
 pub mod damm;
